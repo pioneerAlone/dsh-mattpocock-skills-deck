@@ -97,9 +97,26 @@ if (existsSync(INST_CLIENT)) {
   const t = readFileSync(INST_CLIENT, 'utf8')
   const block = t.match(/ensureSidebarTab[\s\S]{0,2500}/)
   if (block) {
-    const tabCalls = (block[0].match(/registerTab\s*\(\s*\{/g) || []).length
-    check(tabCalls === 1, `ensureSidebarTab 仅注册 1 个 tab id（修复双 sliders；当前 ${tabCalls}）`)
-    check(!/id:\s*['"]waystation:map['"]/.test(block[0]), 'ensureSidebarTab 不再注册 waystation:map LEGACY 别名')
+    const calls = []
+    let idx = 0
+    while (true) {
+      const start = block[0].indexOf('registerTab({', idx)
+      if (start < 0) break
+      let depth = 1
+      let i = start + 'registerTab({'.length
+      while (i < block[0].length && depth > 0) {
+        const ch = block[0][i]
+        if (ch === '{') depth++
+        else if (ch === '}') depth--
+        i++
+      }
+      calls.push(block[0].slice(start, i))
+      idx = i
+    }
+    const tabCalls = calls.length
+    const visibleTabs = calls.filter(c => !/hidden:\s*true/.test(c)).length
+    check(visibleTabs === 1, `ensureSidebarTab 在 better-sidebar UI 中可见的 tab 仅 1 个（修双 sliders；可见 ${visibleTabs} / 注册 ${tabCalls}）`)
+    check(/id:\s*['"]waystation:map['"]/.test(block[0]) && /hidden:\s*true/.test(block[0]), 'LEGACY waystation:map 注册存在（hidden:true 抑制 + 添加菜单可见性；#298 兼容旧会话打开记录）')
   } else {
     check(false, 'installed ensureSidebarTab 未定位到')
   }
